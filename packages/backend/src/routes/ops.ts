@@ -10,8 +10,9 @@ let seedRunning: Promise<SeedResult> | null = null;
 function requireOpsToken(c: any) {
   const header = c.req.header('authorization') || c.req.header('x-ops-token') || '';
   const token = header.startsWith('Bearer ') ? header.slice('Bearer '.length).trim() : header.trim();
-  if (!env.OPS_TOKEN) return false;
-  return token && token === env.OPS_TOKEN;
+  const configured = (env.OPS_TOKEN || '').trim();
+  if (!configured) return false;
+  return !!token && token === configured;
 }
 
 function runSeed(force: boolean): Promise<SeedResult> {
@@ -50,7 +51,12 @@ function runSeed(force: boolean): Promise<SeedResult> {
 }
 
 opsRoute.post('/seed', async (c) => {
-  if (!requireOpsToken(c)) return c.json({ error: 'Unauthorized' }, 401);
+  if (!requireOpsToken(c)) {
+    const header = c.req.header('authorization') || c.req.header('x-ops-token') || '';
+    const tokenProvided = !!header.trim();
+    const hasOpsToken = !!(env.OPS_TOKEN || '').trim();
+    return c.json({ error: 'Unauthorized', hasOpsToken, tokenProvided }, 401);
+  }
 
   const body = await c.req.json().catch(() => ({}));
   const force = body?.force === true;
