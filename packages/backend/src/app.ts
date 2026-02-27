@@ -10,6 +10,7 @@ import { fsrRoute } from './routes/fsr.js';
 import { bookingRoute } from './routes/booking.js';
 import { voiceRoute } from './routes/voice.js';
 import { ttsRoute } from './routes/tts.js';
+import { opsRoute } from './routes/ops.js';
 
 export function createApp() {
   const app = new Hono();
@@ -28,6 +29,7 @@ export function createApp() {
   app.route('/booking', bookingRoute);
   app.route('/voice', voiceRoute);
   app.route('/tts', ttsRoute);
+  app.route('/ops', opsRoute);
 
   return app;
 }
