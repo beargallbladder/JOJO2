@@ -4,156 +4,31 @@ import * as schema from '../schema.js';
 import { generateVins } from './vin-generator.js';
 import { generatePillarData } from './pillar-generator.js';
 import { generateDealers } from './dealer-generator.js';
-import { sql } from 'drizzle-orm';
+import { count, sql } from 'drizzle-orm';
 
 async function seed() {
   const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/gravity_leads';
   const pool = new pg.Pool({ connectionString: DATABASE_URL });
   const db = drizzle(pool, { schema });
+  const force = process.env.FORCE_SEED === '1';
 
   console.log('🌱 Starting seed...');
 
-  // Create enums and tables if they don't exist
-  console.log('  Creating schema...');
-  await db.execute(sql`
-    DO $$ BEGIN
-      CREATE TYPE risk_band AS ENUM ('critical', 'high', 'medium', 'low');
-    EXCEPTION WHEN duplicate_object THEN null; END $$;
-    DO $$ BEGIN
-      CREATE TYPE subsystem AS ENUM ('propulsion', 'chassis', 'safety');
-    EXCEPTION WHEN duplicate_object THEN null; END $$;
-    DO $$ BEGIN
-      CREATE TYPE pillar_state AS ENUM ('present', 'absent', 'unknown');
-    EXCEPTION WHEN duplicate_object THEN null; END $$;
-    DO $$ BEGIN
-      CREATE TYPE booking_status AS ENUM ('draft', 'held', 'exported');
-    EXCEPTION WHEN duplicate_object THEN null; END $$;
-  `);
+  const existing = await db.select({ count: count() }).from(schema.vins);
+  const existingCount = Number(existing[0]?.count ?? 0);
 
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS vins (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      vin_code TEXT NOT NULL UNIQUE,
-      year INTEGER NOT NULL,
-      make TEXT NOT NULL,
-      model TEXT NOT NULL,
-      trim TEXT NOT NULL,
-      subsystem subsystem NOT NULL,
-      posterior_p REAL NOT NULL DEFAULT 0,
-      posterior_c REAL NOT NULL DEFAULT 0,
-      posterior_s REAL NOT NULL DEFAULT 0,
-      risk_band risk_band NOT NULL DEFAULT 'low',
-      home_area TEXT,
-      last_event_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
+  if (existingCount > 0 && !force) {
+    console.log(`  Database already seeded (vins=${existingCount}). Skipping.`);
+    await pool.end();
+    return;
+  }
 
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS pillar_events (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      vin_id UUID NOT NULL REFERENCES vins(id),
-      pillar_name TEXT NOT NULL,
-      pillar_state pillar_state NOT NULL,
-      confidence REAL NOT NULL DEFAULT 0.5,
-      evidence_source TEXT NOT NULL,
-      occurred_at TIMESTAMPTZ NOT NULL,
-      metadata JSONB DEFAULT '{}'
-    )
-  `);
-
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS posterior_snapshots (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      vin_id UUID NOT NULL REFERENCES vins(id),
-      p_score REAL NOT NULL,
-      c_score REAL NOT NULL,
-      s_score REAL NOT NULL,
-      risk_band risk_band NOT NULL,
-      pillar_vector JSONB DEFAULT '{}',
-      frame_index INTEGER NOT NULL,
-      computed_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS governance_actions (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      vin_id UUID NOT NULL REFERENCES vins(id),
-      action_type TEXT NOT NULL,
-      reason TEXT NOT NULL,
-      triggered_by TEXT NOT NULL,
-      metadata JSONB DEFAULT '{}',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS memory_records (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      vin_id UUID NOT NULL REFERENCES vins(id),
-      record_type TEXT NOT NULL,
-      content TEXT NOT NULL,
-      source TEXT NOT NULL,
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS dealer_directory (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      name TEXT NOT NULL,
-      code TEXT NOT NULL UNIQUE,
-      metro_area TEXT NOT NULL,
-      postal_prefix TEXT NOT NULL,
-      address TEXT NOT NULL,
-      phone TEXT NOT NULL,
-      capabilities JSONB DEFAULT '[]',
-      latitude REAL NOT NULL,
-      longitude REAL NOT NULL
-    )
-  `);
-
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS vin_preferences (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      vin_id UUID NOT NULL REFERENCES vins(id) UNIQUE,
-      home_area TEXT,
-      preferred_dealer_id UUID REFERENCES dealer_directory(id),
-      use_preferred_first INTEGER NOT NULL DEFAULT 1,
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS fsr_slots (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      dealer_id UUID NOT NULL REFERENCES dealer_directory(id),
-      date TEXT NOT NULL,
-      time_block TEXT NOT NULL,
-      capacity INTEGER NOT NULL DEFAULT 2,
-      booked INTEGER NOT NULL DEFAULT 0
-    )
-  `);
-
-  await db.execute(sql`
-    CREATE TABLE IF NOT EXISTS booking_drafts (
-      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-      vin_id UUID NOT NULL REFERENCES vins(id),
-      dealer_id UUID NOT NULL REFERENCES dealer_directory(id),
-      slot_id UUID NOT NULL REFERENCES fsr_slots(id),
-      status booking_status NOT NULL DEFAULT 'draft',
-      reason TEXT NOT NULL,
-      contact JSONB DEFAULT '{}',
-      created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
-    )
-  `);
-
-  // Clear existing data
-  console.log('  Clearing existing data...');
-  await db.execute(sql`TRUNCATE booking_drafts, vin_preferences, fsr_slots, governance_actions, memory_records, posterior_snapshots, pillar_events, vins, dealer_directory CASCADE`);
+  if (force) {
+    console.log('  FORCE_SEED=1: clearing existing data...');
+    await db.execute(
+      sql`TRUNCATE booking_drafts, vin_preferences, fsr_slots, governance_actions, memory_records, posterior_snapshots, pillar_events, vins, dealer_directory CASCADE`,
+    );
+  }
 
   // Generate dealers first (no FK deps)
   console.log('  Generating 50 dealers + FSR slots...');

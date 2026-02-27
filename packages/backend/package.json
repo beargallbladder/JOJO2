@@ -9,7 +9,7 @@
     "build": "tsc",
     "seed": "tsx src/db/seed/index.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate"
+    "db:migrate": "drizzle-kit migrate && npm run seed"
   },
   "dependencies": {
     "@gravity/shared": "*",
