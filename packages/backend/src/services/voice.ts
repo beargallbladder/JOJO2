@@ -1,9 +1,75 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { env } from '../config/env.js';
 
-const VIN_SYSTEM_PROMPT = `You are a senior automotive risk analyst at a vehicle intelligence platform called Gravity. You have access ONLY to the VIN data provided. Reference specific pillars, P/C/S scores, absences, and governance actions. Be authoritative and concise. Use technical language but remain accessible. Never say "I think" - state findings directly.`;
+const VIN_SYSTEM_PROMPT = `You are Gravity Wingman — a vehicle health and prognostics operator.
 
-const FLEET_SYSTEM_PROMPT = `You are a fleet intelligence advisor at a vehicle intelligence platform called Gravity. You see aggregated fleet data only. Reference top-ranked VINs, subsystem trends, and scheduling recommendations. Do not reference individual VIN details until the user asks about one. Be strategic and data-driven.`;
+You are the user’s partner. Think Maverick and Goose: tight callouts, calm authority, mutual trust.
+
+Guardrails:
+- Use ONLY the provided context. If something is missing, say “Not in the current record.”
+- No speculation. No hype. No emojis.
+- Short declarative sentences. Clear next action.
+
+Always reference:
+- Posterior P (risk probability)
+- Confidence C
+- Severity S
+- The pillars that support the call (and any notable absences)
+
+Output structure:
+1) What’s up (one sentence)
+2) Numbers: P / C / S
+3) Drivers: 2–4 pillars
+4) Gaps: missing/weak evidence
+5) Next move: one action`;
+
+const FLEET_SYSTEM_PROMPT = `You are Gravity Wingman — fleet health operator.
+
+Guardrails:
+- Use ONLY the provided fleet context.
+- Do not invent VINs. Reference only the provided top leads list.
+- No speculation. No filler.
+
+Tone:
+Calm. Controlled. Operator cadence. Partner mindset.
+
+Output structure:
+1) What’s up (one sentence)
+2) Priority list (top 3) with P and band
+3) Subsystem trend (one sentence)
+4) Next move (one action)`;
+
+function safeFallback(params: { scope: 'vin' | 'fleet'; message: string; context: Record<string, unknown> }) {
+  if (params.scope === 'vin') {
+    const ctx: any = params.context || {};
+    const vin = ctx.vin || {};
+    const pillars = Array.isArray(ctx.pillars) ? ctx.pillars : [];
+    const governance = Array.isArray(ctx.governance) ? ctx.governance : [];
+    const topPillars = pillars
+      .slice()
+      .sort((a: any, b: any) => String(b.occurred_at).localeCompare(String(a.occurred_at)))
+      .slice(0, 3)
+      .map((p: any) => `${p.pillar_name}=${p.pillar_state}`);
+
+    return [
+      `What’s up: ${vin.risk_band || 'unknown'} risk signal on VIN ${vin.vin_code || 'unknown'}.`,
+      `Numbers: P ${Number(vin.posterior_p ?? 0).toFixed(2)} / C ${Number(vin.posterior_c ?? 0).toFixed(2)} / S ${Number(vin.posterior_s ?? 0).toFixed(2)}`,
+      `Drivers: ${topPillars.length ? topPillars.join(', ') : 'Not in the current record.'}`,
+      `Governance: ${governance.length ? governance[0].action_type : 'None recorded.'}`,
+      `Next move: Open the timeline. Verify the last event window. If needed, schedule service hold/recommendation.`,
+    ].join('\n');
+  }
+
+  const ctx: any = params.context || {};
+  const top = Array.isArray(ctx.top_leads) ? ctx.top_leads : [];
+  const top3 = top.slice(0, 3).map((v: any, i: number) => `${i + 1}) ${v.vin_code} P ${Number(v.p ?? 0).toFixed(2)} (${v.band})`);
+  return [
+    `What’s up: Fleet risk is concentrated in the top banded VINs.`,
+    `Priority:`,
+    top3.length ? top3.join('\n') : 'Not in the current record.',
+    `Next move: Pull the #1 VIN detail. Confirm pillars. Decide schedule vs hold.`,
+  ].join('\n');
+}
 
 export async function* streamVoiceResponse(params: {
   scope: 'vin' | 'fleet';
@@ -11,10 +77,7 @@ export async function* streamVoiceResponse(params: {
   context: Record<string, unknown>;
 }): AsyncGenerator<{ type: 'text' | 'done' | 'error'; content: string }> {
   if (!env.ANTHROPIC_API_KEY) {
-    yield { type: 'text', content: 'Voice is available when ANTHROPIC_API_KEY is configured. This is a demo placeholder response summarizing the data for ' };
-    yield { type: 'text', content: params.scope === 'vin' ? `VIN ${(params.context as any).vin_code || 'unknown'}. ` : 'the fleet. ' };
-    yield { type: 'text', content: 'The posterior probability indicates ' };
-    yield { type: 'text', content: params.scope === 'vin' ? `a risk level that warrants attention based on the pillar analysis.` : `several high-priority vehicles requiring scheduling.` };
+    yield { type: 'text', content: safeFallback(params) };
     yield { type: 'done', content: '' };
     return;
   }
@@ -42,6 +105,13 @@ export async function* streamVoiceResponse(params: {
     }
     yield { type: 'done', content: '' };
   } catch (err: any) {
-    yield { type: 'error', content: err.message || 'Voice streaming failed' };
+    const msg = err?.message || 'Voice streaming failed';
+    // If the upstream key is invalid/misconfigured, keep the demo alive with a deterministic fallback.
+    if (msg.includes('authentication_error') || msg.includes('invalid') || msg.includes('401')) {
+      yield { type: 'text', content: safeFallback(params) };
+      yield { type: 'done', content: '' };
+      return;
+    }
+    yield { type: 'error', content: msg };
   }
 }

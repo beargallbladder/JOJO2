@@ -35,6 +35,8 @@ const QUICK_PROMPTS = {
 export function VoiceOverlay({ open, onClose, scope, vinId }: VoiceOverlayProps) {
   const [input, setInput] = useState('');
   const { isStreaming, text, error, stream, stop, reset } = useVoiceStream();
+  const [ttsStatus, setTtsStatus] = useState<'idle' | 'generating' | 'speaking' | 'error'>('idle');
+  const [ttsError, setTtsError] = useState<string | null>(null);
   const requestIdRef = useRef(0);
   const spokenForRequestRef = useRef<number | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -44,12 +46,17 @@ export function VoiceOverlay({ open, onClose, scope, vinId }: VoiceOverlayProps)
     if (!message.trim()) return;
     requestIdRef.current += 1;
     spokenForRequestRef.current = null;
+    setTtsStatus('idle');
+    setTtsError(null);
     speakingAbortRef.current?.abort();
     speakingAbortRef.current = null;
     if (audioRef.current) {
       audioRef.current.pause();
       audioRef.current.currentTime = 0;
       audioRef.current.src = '';
+    }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
     }
     stream(scope, vinId || null, message.trim());
     setInput('');
@@ -67,6 +74,8 @@ export function VoiceOverlay({ open, onClose, scope, vinId }: VoiceOverlayProps)
     speakingAbortRef.current = controller;
 
     (async () => {
+      setTtsStatus('generating');
+      setTtsError(null);
       const res = await fetch(`${API_BASE}/tts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -74,15 +83,44 @@ export function VoiceOverlay({ open, onClose, scope, vinId }: VoiceOverlayProps)
         signal: controller.signal,
       });
 
-      if (!res.ok) return;
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        const msg = payload?.error || payload?.details || `TTS failed (${res.status})`;
+        setTtsStatus('error');
+        setTtsError(String(msg));
+        // Fallback: local browser TTS if available (keeps demo alive without external keys).
+        if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+          try {
+            const u = new SpeechSynthesisUtterance(text);
+            u.rate = 0.9;
+            u.pitch = 0.85;
+            u.volume = 1;
+            u.onstart = () => setTtsStatus('speaking');
+            u.onend = () => setTtsStatus('idle');
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(u);
+          } catch {
+            // ignore
+          }
+        }
+        return;
+      }
+
       const blob = await res.blob();
       if (controller.signal.aborted) return;
 
       const url = URL.createObjectURL(blob);
       const audio = new Audio(url);
       audioRef.current = audio;
-      audio.play().catch(() => {});
-      audio.onended = () => URL.revokeObjectURL(url);
+      audio.onplay = () => setTtsStatus('speaking');
+      audio.onended = () => {
+        setTtsStatus('idle');
+        URL.revokeObjectURL(url);
+      };
+      audio.play().catch(() => {
+        setTtsStatus('error');
+        setTtsError('Audio playback blocked by browser.');
+      });
     })().catch(() => {});
   }, [open, isStreaming, text, error]);
 
@@ -96,6 +134,9 @@ export function VoiceOverlay({ open, onClose, scope, vinId }: VoiceOverlayProps)
       audioRef.current.currentTime = 0;
       audioRef.current.src = '';
       audioRef.current = null;
+    }
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
     }
     onClose();
   };
@@ -136,7 +177,7 @@ export function VoiceOverlay({ open, onClose, scope, vinId }: VoiceOverlayProps)
                       {scope === 'vin' ? 'VIN Analyst' : 'Fleet Advisor'}
                     </h3>
                     <p className="text-[10px] text-gravity-text-whisper uppercase tracking-widest">
-                      {isStreaming ? 'Analyzing...' : 'Ready'}
+                      {isStreaming ? 'Analyzing…' : ttsStatus === 'generating' ? 'Voice…' : ttsStatus === 'speaking' ? 'Speaking…' : 'Ready'}
                     </p>
                   </div>
                 </div>
@@ -155,6 +196,11 @@ export function VoiceOverlay({ open, onClose, scope, vinId }: VoiceOverlayProps)
                 <StreamingText text={text} isStreaming={isStreaming} />
                 {error && (
                   <p className="text-xs text-risk-critical mt-2">{error}</p>
+                )}
+                {ttsError && (
+                  <p className="text-[10px] text-gravity-text-whisper mt-2">
+                    TTS: {ttsError}
+                  </p>
                 )}
               </div>
 
