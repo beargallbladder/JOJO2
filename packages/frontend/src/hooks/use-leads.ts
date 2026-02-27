@@ -18,8 +18,9 @@ export function useLeads(options: UseLeadsOptions = {}) {
   if (options.page) params.page = String(options.page);
   if (options.limit) params.limit = String(options.limit);
 
-  return useQuery<LeadsResponse>({
+  return useQuery<LeadsResponse, Error>({
     queryKey: ['leads', params],
     queryFn: () => api.leads(params) as Promise<LeadsResponse>,
+    retry: 1,
   });
 }

@@ -8,6 +8,7 @@ import { SubsystemFilter } from '@/components/leads/subsystem-filter';
 import { VoiceOverlay } from '@/components/voice/voice-overlay';
 import { VoiceTrigger } from '@/components/voice/voice-trigger';
 import { Header } from '@/components/layout/header';
+import { API_BASE } from '@/lib/api-client';
 
 export default function LeadsPage() {
   const [band, setBand] = useState<string | null>(null);
@@ -16,7 +17,7 @@ export default function LeadsPage() {
   const [voiceOpen, setVoiceOpen] = useState(false);
   const limit = 50;
 
-  const { data, isLoading } = useLeads({
+  const { data, isLoading, isError, error, isFetching } = useLeads({
     band: band || undefined,
     subsystem: subsystem || undefined,
     page,
@@ -31,7 +32,13 @@ export default function LeadsPage() {
         <div className="mb-6">
           <h1 className="text-lg font-medium tracking-wide">Command Board</h1>
           <p className="text-sm text-gravity-text-secondary mt-1">
-            {data ? `${data.total} vehicles ranked by posterior probability` : 'Loading fleet data...'}
+            {data
+              ? `${data.total} vehicles ranked by posterior probability`
+              : isError
+                ? 'Failed to load fleet data.'
+                : (isLoading || isFetching)
+                  ? 'Loading fleet data...'
+                  : 'Fleet data unavailable.'}
           </p>
         </div>
 
@@ -43,11 +50,25 @@ export default function LeadsPage() {
         </div>
 
         {/* Table */}
-        {isLoading ? (
+        {isLoading && !data ? (
           <div className="space-y-1">
             {Array.from({ length: 15 }).map((_, i) => (
               <div key={i} className="h-14 bg-gravity-surface rounded-lg animate-shimmer shimmer-bg" style={{ animationDelay: `${i * 50}ms` }} />
             ))}
+          </div>
+        ) : isError ? (
+          <div className="bg-gravity-surface border border-gravity-border rounded-xl p-6">
+            <div className="text-sm font-medium mb-2">Couldn’t load leads</div>
+            <div className="text-sm text-gravity-text-secondary">
+              {error?.message || 'Unknown error'}
+            </div>
+            <div className="text-xs text-gravity-text-whisper mt-3 font-mono break-all">
+              API_BASE: {API_BASE}
+            </div>
+            <div className="text-xs text-gravity-text-secondary mt-3">
+              If this says <span className="font-mono">localhost</span>, set{' '}
+              <span className="font-mono">NEXT_PUBLIC_API_URL</span> in Vercel to your Render backend URL and redeploy.
+            </div>
           </div>
         ) : data ? (
           <>
