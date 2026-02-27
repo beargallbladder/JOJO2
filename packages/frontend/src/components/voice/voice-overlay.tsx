@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/cn';
 import { springs } from '@/lib/motion';
 import { PulseIndicator } from './pulse-indicator';
 import { StreamingText } from './streaming-text';
 import { useVoiceStream } from '@/hooks/use-voice-stream';
+import { API_BASE } from '@/lib/api-client';
 import type { VoiceScope } from '@gravity/shared';
 
 interface VoiceOverlayProps {
@@ -34,16 +35,68 @@ const QUICK_PROMPTS = {
 export function VoiceOverlay({ open, onClose, scope, vinId }: VoiceOverlayProps) {
   const [input, setInput] = useState('');
   const { isStreaming, text, error, stream, stop, reset } = useVoiceStream();
+  const requestIdRef = useRef(0);
+  const spokenForRequestRef = useRef<number | null>(null);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const speakingAbortRef = useRef<AbortController | null>(null);
 
   const handleSubmit = (message: string) => {
     if (!message.trim()) return;
+    requestIdRef.current += 1;
+    spokenForRequestRef.current = null;
+    speakingAbortRef.current?.abort();
+    speakingAbortRef.current = null;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current.src = '';
+    }
     stream(scope, vinId || null, message.trim());
     setInput('');
   };
 
+  useEffect(() => {
+    const requestId = requestIdRef.current;
+    if (!open) return;
+    if (isStreaming) return;
+    if (!text || error) return;
+    if (spokenForRequestRef.current === requestId) return;
+
+    spokenForRequestRef.current = requestId;
+    const controller = new AbortController();
+    speakingAbortRef.current = controller;
+
+    (async () => {
+      const res = await fetch(`${API_BASE}/tts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+        signal: controller.signal,
+      });
+
+      if (!res.ok) return;
+      const blob = await res.blob();
+      if (controller.signal.aborted) return;
+
+      const url = URL.createObjectURL(blob);
+      const audio = new Audio(url);
+      audioRef.current = audio;
+      audio.play().catch(() => {});
+      audio.onended = () => URL.revokeObjectURL(url);
+    })().catch(() => {});
+  }, [open, isStreaming, text, error]);
+
   const handleClose = () => {
     stop();
     reset();
+    speakingAbortRef.current?.abort();
+    speakingAbortRef.current = null;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current.currentTime = 0;
+      audioRef.current.src = '';
+      audioRef.current = null;
+    }
     onClose();
   };
 
