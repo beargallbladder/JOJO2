@@ -4,7 +4,7 @@ import * as schema from '../schema.js';
 import { generateVins } from './vin-generator.js';
 import { generatePillarData } from './pillar-generator.js';
 import { generateDealers } from './dealer-generator.js';
-import { count, sql } from 'drizzle-orm';
+import { count, eq, sql } from 'drizzle-orm';
 
 async function seed() {
   const DATABASE_URL = process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/gravity_leads';
@@ -90,7 +90,7 @@ async function seed() {
 
   // Generate pillar data
   console.log('  Generating pillar events + snapshots...');
-  const { events, snapshots } = generatePillarData(generatedVins);
+  const { events, snapshots, vinUpdates } = generatePillarData(generatedVins);
 
   for (let i = 0; i < events.length; i += BATCH) {
     const batch = events.slice(i, i + BATCH);
@@ -121,6 +121,25 @@ async function seed() {
     })));
   }
   console.log(`  Inserted ${events.length} pillar events, ${snapshots.length} snapshots`);
+
+  // Align the VIN row with the last posterior snapshot so list + detail feel coherent.
+  console.log('  Aligning VIN posterior fields to latest timeline frame...');
+  for (let i = 0; i < vinUpdates.length; i += BATCH) {
+    const batch = vinUpdates.slice(i, i + BATCH);
+    for (const u of batch) {
+      await db
+        .update(schema.vins)
+        .set({
+          posterior_p: u.posterior_p,
+          posterior_c: u.posterior_c,
+          posterior_s: u.posterior_s,
+          risk_band: u.risk_band,
+          last_event_at: u.last_event_at,
+          updated_at: new Date(),
+        })
+        .where(eq(schema.vins.id, u.vin_id));
+    }
+  }
 
   // Generate governance actions for high/critical VINs
   console.log('  Generating governance actions...');
