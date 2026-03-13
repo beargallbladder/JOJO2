@@ -87,7 +87,7 @@ export default function VinDetailPage() {
             className="space-y-6"
           >
             <div className="bg-gravity-surface border border-gravity-border rounded-xl p-6">
-              <GovernancePanel governance={data.governance} suggestion={data.service_suggestion} />
+              <GovernancePanel vin={data.vin} governance={data.governance} suggestion={data.service_suggestion} sortContext={data.sort_context || null} />
             </div>
 
             {/* Schedule CTA */}

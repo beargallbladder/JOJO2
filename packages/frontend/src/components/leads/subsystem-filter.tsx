@@ -8,9 +8,9 @@ interface SubsystemFilterProps {
 }
 
 const subsystems = [
-  { key: 'propulsion', label: 'Propulsion', shortLabel: 'P', color: 'text-amber-400' },
-  { key: 'chassis', label: 'Chassis', shortLabel: 'C', color: 'text-score-c' },
-  { key: 'safety', label: 'Safety', shortLabel: 'S', color: 'text-score-s' },
+  { key: 'battery_12v', label: 'Battery 12V', shortLabel: '12V' },
+  { key: 'oil_maintenance', label: 'Oil', shortLabel: 'OIL' },
+  { key: 'brake_wear', label: 'Brakes', shortLabel: 'BRK' },
 ];
 
 export function SubsystemFilter({ selected, onSelect }: SubsystemFilterProps) {
@@ -34,7 +34,7 @@ export function SubsystemFilter({ selected, onSelect }: SubsystemFilterProps) {
             selected === s.key ? 'bg-gravity-elevated text-gravity-text' : 'bg-gravity-surface text-gravity-text-secondary hover:text-gravity-text'
           )}
         >
-          <span className={s.color}>{s.shortLabel}</span> {s.label}
+          {s.shortLabel}
         </button>
       ))}
     </div>

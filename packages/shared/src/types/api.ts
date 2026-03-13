@@ -1,29 +1,30 @@
-import type { Vin, PillarEvent, PosteriorSnapshot, RiskBand, Subsystem } from './vin';
+import type { Vin, PillarEvent, PosteriorSnapshot, RiskBand, Subsystem, SortContext } from './vin';
 import type { Dealer, FSRSlot, BookingDraft } from './dealer';
 import type { GovernanceAction } from './governance';
 
-// Leads
 export interface LeadsQuery {
   subsystem?: Subsystem;
   band?: RiskBand;
+  governance_band?: string;
+  lens?: string;
   page?: number;
   limit?: number;
 }
 
 export interface LeadsResponse {
-  leads: Vin[];
+  leads: (Vin & { sort_context?: SortContext })[];
   total: number;
   page: number;
   limit: number;
 }
 
-// VIN Detail
 export interface VinDetailResponse {
   vin: Vin;
   pillars: PillarEvent[];
   timeline: PosteriorSnapshot[];
   governance: GovernanceAction[];
   service_suggestion: ServiceSuggestion | null;
+  sort_context: SortContext | null;
 }
 
 export interface ServiceSuggestion {
@@ -32,14 +33,12 @@ export interface ServiceSuggestion {
   reason: string;
 }
 
-// Preferences
 export interface VinPreferencesRequest {
   home_area?: string;
   preferred_dealer_id?: string;
   use_preferred_first?: boolean;
 }
 
-// Dealers
 export interface DealerSearchQuery {
   home_area?: string;
   vin_id?: string;
@@ -50,7 +49,6 @@ export interface DealerSearchResponse {
   dealers: Dealer[];
 }
 
-// FSR
 export interface FSRAvailabilityRequest {
   vin_id: string;
   dealer_ids: string[];
@@ -62,7 +60,6 @@ export interface FSRAvailabilityResponse {
   slots: (FSRSlot & { dealer: Dealer })[];
 }
 
-// Booking
 export interface BookingDraftRequest {
   vin_id: string;
   dealer_id: string;

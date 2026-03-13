@@ -7,6 +7,7 @@ import type { LeadsResponse } from '@gravity/shared';
 interface UseLeadsOptions {
   subsystem?: string;
   band?: string;
+  governance_band?: string;
   page?: number;
   limit?: number;
 }
@@ -15,6 +16,7 @@ export function useLeads(options: UseLeadsOptions = {}) {
   const params: Record<string, string> = {};
   if (options.subsystem) params.subsystem = options.subsystem;
   if (options.band) params.band = options.band;
+  if (options.governance_band) params.governance_band = options.governance_band;
   if (options.page) params.page = String(options.page);
   if (options.limit) params.limit = String(options.limit);
 

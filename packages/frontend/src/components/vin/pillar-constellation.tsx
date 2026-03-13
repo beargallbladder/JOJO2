@@ -3,8 +3,18 @@
 import { motion } from 'framer-motion';
 import { PillarNode } from './pillar-node';
 import { polygonPoints } from '@/lib/pillar-geometry';
-import { PILLARS, type PillarName } from '@gravity/shared';
 import type { PillarEvent } from '@gravity/shared';
+
+const PILLAR_LABELS: Record<string, { label: string; letter: string }> = {
+  short_trip_density: { label: 'Short-Trip', letter: 'A' },
+  ota_stress: { label: 'OTA Stress', letter: 'B' },
+  cold_soak: { label: 'Cold-Soak', letter: 'C' },
+  cranking_degradation: { label: 'Cranking', letter: 'D' },
+  hmi_reset: { label: 'HMI Reset', letter: 'E' },
+  service_record: { label: 'Service Rec', letter: 'F' },
+  parts_purchase: { label: 'Parts', letter: 'G' },
+  cohort_prior: { label: 'Cohort', letter: 'H' },
+};
 
 interface PillarConstellationProps {
   pillars: PillarEvent[];
@@ -17,12 +27,10 @@ export function PillarConstellation({ pillars, className }: PillarConstellationP
   const cy = size / 2;
   const radius = 100;
 
-  // Get unique pillar names from events
-  const pillarNames = [...new Set(pillars.map(p => p.pillar_name))] as PillarName[];
+  const pillarNames = [...new Set(pillars.map(p => p.pillar_name))];
   const nodeCount = Math.max(pillarNames.length, 5);
   const points = polygonPoints(nodeCount, radius, cx, cy);
 
-  // Get latest state for each pillar
   const latestStates: Record<string, PillarEvent> = {};
   for (const p of pillars) {
     if (!latestStates[p.pillar_name] || p.occurred_at > latestStates[p.pillar_name].occurred_at) {
@@ -30,16 +38,14 @@ export function PillarConstellation({ pillars, className }: PillarConstellationP
     }
   }
 
-  // Build polygon path
   const pathD = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0]},${p[1]}`).join(' ') + ' Z';
 
   return (
     <div className={className}>
       <div className="text-[10px] font-semibold uppercase tracking-widest text-gravity-text-whisper mb-3">
-        Pillar Constellation
+        Evidence Constellation
       </div>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {/* Background polygon */}
         <motion.path
           d={pathD}
           fill="none"
@@ -50,28 +56,25 @@ export function PillarConstellation({ pillars, className }: PillarConstellationP
           transition={{ duration: 1, ease: 'easeInOut' }}
         />
 
-        {/* Connection lines from center */}
         {points.map((p, i) => (
           <line key={`line-${i}`} x1={cx} y1={cy} x2={p[0]} y2={p[1]} stroke="#1E2330" strokeWidth={0.5} opacity={0.5} />
         ))}
 
-        {/* Center dot */}
-        <circle cx={cx} cy={cy} r={3} fill="#3B82F6" opacity={0.6} />
+        <circle cx={cx} cy={cy} r={3} fill="#6B7280" opacity={0.6} />
 
-        {/* Pillar nodes */}
         {pillarNames.map((name, i) => {
           const point = points[i] || [cx, cy];
-          const pillarDef = PILLARS[name as keyof typeof PILLARS];
+          const def = PILLAR_LABELS[name];
           const latest = latestStates[name];
           return (
             <PillarNode
               key={name}
               name={name}
-              label={pillarDef?.label || name}
+              label={def?.letter ? `${def.letter} ${def.label}` : name}
               state={latest?.pillar_state || 'unknown'}
               x={point[0]}
               y={point[1]}
-              color={pillarDef?.color || '#8B92A5'}
+              color="#8B92A5"
             />
           );
         })}

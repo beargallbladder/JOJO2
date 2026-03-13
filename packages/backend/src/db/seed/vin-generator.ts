@@ -1,7 +1,6 @@
 import { v4 as uuidv4 } from 'uuid';
 import { STORYLINES } from './storylines.js';
 
-// Seeded PRNG (mulberry32)
 function mulberry32(seed: number) {
   return function () {
     seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
@@ -11,7 +10,6 @@ function mulberry32(seed: number) {
   };
 }
 
-// Convert string to numeric seed
 function strToSeed(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) {
@@ -20,7 +18,7 @@ function strToSeed(s: string): number {
   return h;
 }
 
-const SEED = 'gravity-lead-demo-v1';
+const SEED = 'gravity-lead-demo-v2';
 const random = mulberry32(strToSeed(SEED));
 
 const MAKES_MODELS = [
@@ -36,7 +34,7 @@ const MAKES_MODELS = [
   ]},
 ];
 
-const SUBSYSTEMS = ['propulsion', 'chassis', 'safety'] as const;
+const SUBSYSTEMS = ['battery_12v', 'oil_maintenance', 'brake_wear'] as const;
 const YEARS = [2019, 2020, 2021, 2022, 2023, 2024];
 const POSTAL_PREFIXES = ['481', '606', '770', '900', '331', '752', '850', '981'];
 
@@ -50,7 +48,6 @@ function genVinCode(index: number): string {
   for (let i = 0; i < 11; i++) {
     code += chars[Math.floor(random() * chars.length)];
   }
-  // Last 3 are sequential for uniqueness
   const seq = index.toString().padStart(3, '0');
   return code.slice(0, 14) + seq;
 }
@@ -62,16 +59,11 @@ function getRiskBand(p: number): 'critical' | 'high' | 'medium' | 'low' {
   return 'low';
 }
 
-// Distribution: 20% critical, 25% high, 30% medium, 25% low
-function assignStoryline(index: number): typeof STORYLINES[number] {
+function assignStoryline(): typeof STORYLINES[number] {
   const r = random();
-  // Critical VINs (storylines 2,4,5)
   if (r < 0.20) return pick([STORYLINES[1], STORYLINES[3], STORYLINES[4]]);
-  // High (storylines 1,3,6,10)
   if (r < 0.45) return pick([STORYLINES[0], STORYLINES[2], STORYLINES[5], STORYLINES[9]]);
-  // Medium (storylines 7,8)
   if (r < 0.75) return pick([STORYLINES[6], STORYLINES[7]]);
-  // Low (storyline 9)
   return STORYLINES[8];
 }
 
@@ -92,11 +84,13 @@ export interface GeneratedVin {
   last_event_at: Date;
 }
 
-// Hero VINs
 const HERO_VINS = [
-  { index: 0, vinCode: '1FTEW1E5XMFHERO1', storylineId: 3 },
-  { index: 1, vinCode: '1FTEW1E5XMFHERO2', storylineId: 4 },
-  { index: 2, vinCode: '1FTEW1E5XMFHERO3', storylineId: 5 },
+  { index: 0, vinCode: '1FTEW1E5XMFHERO1', storylineId: 3, subsystem: 'battery_12v' as const },
+  { index: 1, vinCode: '1FTEW1E5XMFHERO2', storylineId: 4, subsystem: 'oil_maintenance' as const },
+  { index: 2, vinCode: '1FTEW1E5XMFHERO3', storylineId: 5, subsystem: 'brake_wear' as const },
+  { index: 3, vinCode: '1FTEW1E5XMFHERO4', storylineId: 1, subsystem: 'battery_12v' as const },
+  { index: 4, vinCode: '1FTEW1E5XMFHERO5', storylineId: 2, subsystem: 'oil_maintenance' as const },
+  { index: 5, vinCode: '1FTEW1E5XMFHERO6', storylineId: 9, subsystem: 'battery_12v' as const },
 ];
 
 export function generateVins(count: number = 500): GeneratedVin[] {
@@ -105,7 +99,7 @@ export function generateVins(count: number = 500): GeneratedVin[] {
 
   for (let i = 0; i < count; i++) {
     const hero = HERO_VINS.find(h => h.index === i);
-    const storyline = hero ? STORYLINES[hero.storylineId - 1] : assignStoryline(i);
+    const storyline = hero ? STORYLINES[hero.storylineId - 1] : assignStoryline();
     const makeEntry = MAKES_MODELS[0];
     const modelEntry = pick(makeEntry.models);
     const finalP = storyline.pCurve(1);
@@ -119,7 +113,7 @@ export function generateVins(count: number = 500): GeneratedVin[] {
       make: makeEntry.make,
       model: modelEntry.model,
       trim: pick(modelEntry.trims),
-      subsystem: pick([...SUBSYSTEMS]),
+      subsystem: hero ? hero.subsystem : pick([...SUBSYSTEMS]),
       posterior_p: Math.round(finalP * 1000) / 1000,
       posterior_c: Math.round(finalC * 1000) / 1000,
       posterior_s: Math.round(finalS * 1000) / 1000,

@@ -1,7 +1,6 @@
 'use client';
 
 import { cn } from '@/lib/cn';
-import { RISK_BANDS } from '@gravity/shared';
 
 interface BandFilterProps {
   selected: string | null;
@@ -9,10 +8,9 @@ interface BandFilterProps {
 }
 
 const bands = [
-  { key: 'critical', label: 'Critical', color: 'bg-risk-critical' },
-  { key: 'high', label: 'High', color: 'bg-risk-high' },
-  { key: 'medium', label: 'Medium', color: 'bg-risk-medium' },
-  { key: 'low', label: 'Low', color: 'bg-risk-low' },
+  { key: 'ESCALATED', label: 'Escalated', dotClass: 'bg-red-500' },
+  { key: 'MONITOR', label: 'Monitor', dotClass: 'bg-yellow-500' },
+  { key: 'SUPPRESSED', label: 'Suppressed', dotClass: 'bg-gray-500' },
 ];
 
 export function BandFilter({ selected, onSelect }: BandFilterProps) {
@@ -36,7 +34,7 @@ export function BandFilter({ selected, onSelect }: BandFilterProps) {
             selected === b.key ? 'bg-gravity-elevated text-gravity-text' : 'bg-gravity-surface text-gravity-text-secondary hover:text-gravity-text'
           )}
         >
-          <span className={cn('w-2 h-2 rounded-full', b.color)} />
+          <span className={cn('w-2 h-2 rounded-full', b.dotClass)} />
           {b.label}
         </button>
       ))}

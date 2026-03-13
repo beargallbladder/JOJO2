@@ -14,20 +14,39 @@ async function seed() {
 
   console.log('🌱 Starting seed...');
 
-  const existing = await db.select({ count: count() }).from(schema.vins);
-  const existingCount = Number(existing[0]?.count ?? 0);
-
-  if (existingCount > 0 && !force) {
-    console.log(`  Database already seeded (vins=${existingCount}). Skipping.`);
-    await pool.end();
-    return;
+  if (!force) {
+    try {
+      const existing = await db.select({ count: count() }).from(schema.vins);
+      const existingCount = Number(existing[0]?.count ?? 0);
+      if (existingCount > 0) {
+        console.log(`  Database already seeded (vins=${existingCount}). Skipping.`);
+        await pool.end();
+        return;
+      }
+    } catch {
+      console.log('  vins table does not exist yet. Will create via migration.');
+    }
   }
 
   if (force) {
-    console.log('  FORCE_SEED=1: clearing existing data...');
-    await db.execute(
-      sql`TRUNCATE booking_drafts, vin_preferences, fsr_slots, governance_actions, memory_records, posterior_snapshots, pillar_events, vins, dealer_directory CASCADE`,
-    );
+    console.log('  FORCE_SEED=1: dropping all tables and enums for clean rebuild...');
+    await db.execute(sql`
+      DROP TABLE IF EXISTS booking_drafts CASCADE;
+      DROP TABLE IF EXISTS vin_preferences CASCADE;
+      DROP TABLE IF EXISTS fsr_slots CASCADE;
+      DROP TABLE IF EXISTS governance_actions CASCADE;
+      DROP TABLE IF EXISTS memory_records CASCADE;
+      DROP TABLE IF EXISTS posterior_snapshots CASCADE;
+      DROP TABLE IF EXISTS pillar_events CASCADE;
+      DROP TABLE IF EXISTS vins CASCADE;
+      DROP TABLE IF EXISTS dealer_directory CASCADE;
+      DROP TABLE IF EXISTS __drizzle_migrations CASCADE;
+      DROP TYPE IF EXISTS risk_band CASCADE;
+      DROP TYPE IF EXISTS subsystem CASCADE;
+      DROP TYPE IF EXISTS pillar_state CASCADE;
+      DROP TYPE IF EXISTS booking_status CASCADE;
+      DROP TYPE IF EXISTS governance_band CASCADE;
+    `);
   }
 
   // Generate dealers first (no FK deps)
@@ -115,6 +134,8 @@ async function seed() {
       c_score: s.c_score,
       s_score: s.s_score,
       risk_band: s.risk_band,
+      governance_band: s.governance_band,
+      governance_reason: s.governance_reason,
       pillar_vector: s.pillar_vector,
       frame_index: s.frame_index,
       computed_at: s.computed_at,
@@ -134,6 +155,8 @@ async function seed() {
           posterior_c: u.posterior_c,
           posterior_s: u.posterior_s,
           risk_band: u.risk_band,
+          governance_band: u.governance_band,
+          governance_reason: u.governance_reason,
           last_event_at: u.last_event_at,
           updated_at: new Date(),
         })

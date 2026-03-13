@@ -5,6 +5,12 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
+ CREATE TYPE "public"."governance_band" AS ENUM('ESCALATED', 'MONITOR', 'SUPPRESSED');
+EXCEPTION
+ WHEN duplicate_object THEN null;
+END $$;
+--> statement-breakpoint
+DO $$ BEGIN
  CREATE TYPE "public"."pillar_state" AS ENUM('present', 'absent', 'unknown');
 EXCEPTION
  WHEN duplicate_object THEN null;
@@ -17,7 +23,7 @@ EXCEPTION
 END $$;
 --> statement-breakpoint
 DO $$ BEGIN
- CREATE TYPE "public"."subsystem" AS ENUM('propulsion', 'chassis', 'safety');
+ CREATE TYPE "public"."subsystem" AS ENUM('battery_12v', 'oil_maintenance', 'brake_wear');
 EXCEPTION
  WHEN duplicate_object THEN null;
 END $$;
@@ -94,6 +100,8 @@ CREATE TABLE IF NOT EXISTS "posterior_snapshots" (
 	"c_score" real NOT NULL,
 	"s_score" real NOT NULL,
 	"risk_band" "risk_band" NOT NULL,
+	"governance_band" "governance_band" DEFAULT 'SUPPRESSED' NOT NULL,
+	"governance_reason" text DEFAULT '' NOT NULL,
 	"pillar_vector" jsonb DEFAULT '{}'::jsonb,
 	"frame_index" integer NOT NULL,
 	"computed_at" timestamp with time zone DEFAULT now() NOT NULL
@@ -121,6 +129,8 @@ CREATE TABLE IF NOT EXISTS "vins" (
 	"posterior_c" real DEFAULT 0 NOT NULL,
 	"posterior_s" real DEFAULT 0 NOT NULL,
 	"risk_band" "risk_band" DEFAULT 'low' NOT NULL,
+	"governance_band" "governance_band" DEFAULT 'SUPPRESSED' NOT NULL,
+	"governance_reason" text DEFAULT '' NOT NULL,
 	"home_area" text,
 	"last_event_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,

@@ -1,5 +1,5 @@
 {
-  "id": "aaa48e83-96ae-4a1e-bdb7-db1d1af0bdd1",
+  "id": "b95573dc-b9ae-4c6c-9ffa-6be0768cead8",
   "prevId": "00000000-0000-0000-0000-000000000000",
   "version": "7",
   "dialect": "postgresql",
@@ -506,6 +506,21 @@
           "primaryKey": false,
           "notNull": true
         },
+        "governance_band": {
+          "name": "governance_band",
+          "type": "governance_band",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'SUPPRESSED'"
+        },
+        "governance_reason": {
+          "name": "governance_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
         "pillar_vector": {
           "name": "pillar_vector",
           "type": "jsonb",
@@ -707,6 +722,21 @@
           "notNull": true,
           "default": "'low'"
         },
+        "governance_band": {
+          "name": "governance_band",
+          "type": "governance_band",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'SUPPRESSED'"
+        },
+        "governance_reason": {
+          "name": "governance_reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
         "home_area": {
           "name": "home_area",
           "type": "text",
@@ -759,6 +789,15 @@
         "exported"
       ]
     },
+    "public.governance_band": {
+      "name": "governance_band",
+      "schema": "public",
+      "values": [
+        "ESCALATED",
+        "MONITOR",
+        "SUPPRESSED"
+      ]
+    },
     "public.pillar_state": {
       "name": "pillar_state",
       "schema": "public",
@@ -782,9 +821,9 @@
       "name": "subsystem",
       "schema": "public",
       "values": [
-        "propulsion",
-        "chassis",
-        "safety"
+        "battery_12v",
+        "oil_maintenance",
+        "brake_wear"
       ]
     }
   },

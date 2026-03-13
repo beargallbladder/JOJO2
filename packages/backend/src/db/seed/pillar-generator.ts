@@ -1,19 +1,40 @@
 import { v4 as uuidv4 } from 'uuid';
 import type { GeneratedVin } from './vin-generator.js';
 
-// NOTE: keep seed generation self-contained.
-// Importing workspace TS sources from @gravity/shared breaks backend tsc rootDir constraints on Render.
 const PILLAR_NAMES = [
-  'dtc_history',
-  'recall_status',
-  'service_history',
-  'warranty_claims',
-  'tsb_applicability',
-  'field_reports',
-  'telematics',
-  'inspection_results',
+  'short_trip_density',
+  'ota_stress',
+  'cold_soak',
+  'cranking_degradation',
+  'hmi_reset',
+  'service_record',
+  'parts_purchase',
+  'cohort_prior',
 ] as const;
 type PillarName = (typeof PILLAR_NAMES)[number];
+
+const SUBSYSTEM_PILLARS: Record<string, readonly PillarName[]> = {
+  battery_12v: ['short_trip_density', 'ota_stress', 'cold_soak', 'cranking_degradation', 'cohort_prior'],
+  oil_maintenance: ['hmi_reset', 'short_trip_density', 'cranking_degradation', 'service_record', 'parts_purchase', 'cohort_prior'],
+  brake_wear: ['short_trip_density', 'cranking_degradation', 'service_record', 'cohort_prior'],
+};
+
+const SUBSYSTEM_N_EXPECTED: Record<string, number> = {
+  battery_12v: 5,
+  oil_maintenance: 6,
+  brake_wear: 4,
+};
+
+type GovBand = 'ESCALATED' | 'MONITOR' | 'SUPPRESSED';
+
+function computeGovBand(p: number, c: number, sDays: number): { band: GovBand; reason: string } {
+  if (sDays > 60) return { band: 'SUPPRESSED', reason: `S=${sDays}d exceeds 60d ceiling` };
+  if (c < 0.50) return { band: 'SUPPRESSED', reason: `C=${c.toFixed(2)} below 0.50 floor` };
+  if (p >= 0.85 && c >= 0.70 && sDays <= 14) return { band: 'ESCALATED', reason: `P=${p.toFixed(2)} ≥ 0.85, C=${c.toFixed(2)} ≥ 0.70, S=${sDays}d ≤ 14` };
+  if (p >= 0.60 && c >= 0.60) return { band: 'MONITOR', reason: `P=${p.toFixed(2)} elevated, C=${c.toFixed(2)} ≥ 0.60` };
+  if (p < 0.45) return { band: 'SUPPRESSED', reason: `P=${p.toFixed(2)} below 0.45` };
+  return { band: 'SUPPRESSED', reason: `Gap zone — SUPPRESSED by exhaustion` };
+}
 
 // Simple PRNG for pillar generation
 function mulberry32(seed: number) {
@@ -45,6 +66,8 @@ export interface GeneratedSnapshot {
   c_score: number;
   s_score: number;
   risk_band: 'critical' | 'high' | 'medium' | 'low';
+  governance_band: GovBand;
+  governance_reason: string;
   pillar_vector: Record<PillarName, 'present' | 'absent' | 'unknown'>;
   frame_index: number;
   computed_at: Date;
@@ -56,6 +79,8 @@ export interface GeneratedVinUpdate {
   posterior_c: number;
   posterior_s: number;
   risk_band: 'critical' | 'high' | 'medium' | 'low';
+  governance_band: GovBand;
+  governance_reason: string;
   last_event_at: Date;
 }
 
@@ -90,17 +115,18 @@ export function generatePillarData(vins: GeneratedVin[]) {
     const frameCount = 8 + Math.floor(rng() * 8); // 8-15 timeline frames
     const startTime = now.getTime() - ninetyDaysMs;
 
-    // Coverage profile (probability a pillar is observed at all).
-    // This is where "missing data is calculated" comes from.
+    const relevantPillars = SUBSYSTEM_PILLARS[vin.subsystem] || PILLAR_NAMES;
+    const nExpected = SUBSYSTEM_N_EXPECTED[vin.subsystem] || relevantPillars.length;
+
     const coverage: Record<PillarName, number> = {
-      telematics: 0.85 - rng() * 0.1, // wide coverage
-      dtc_history: 0.75 - rng() * 0.15,
-      service_history: 0.65 - rng() * 0.25,
-      warranty_claims: 0.55 - rng() * 0.25,
-      recall_status: 0.9 - rng() * 0.05,
-      tsb_applicability: 0.7 - rng() * 0.15,
-      field_reports: 0.35 + rng() * 0.25, // sparse, noisy
-      inspection_results: 0.4 + rng() * 0.35, // episodic
+      short_trip_density: 0.90 - rng() * 0.08,
+      ota_stress: 0.40 + rng() * 0.25,
+      cold_soak: 0.80 - rng() * 0.10,
+      cranking_degradation: 0.75 - rng() * 0.15,
+      hmi_reset: 0.60 - rng() * 0.20,
+      service_record: 0.55 - rng() * 0.25,
+      parts_purchase: 0.35 + rng() * 0.25,
+      cohort_prior: 0.95 - rng() * 0.05,
     };
 
     // Track recency for staleness. Initialize "unknown" as very stale.
@@ -116,13 +142,10 @@ export function generatePillarData(vins: GeneratedVin[]) {
       const t = clamp01(baseT + jitter(rng, 0.08));
       const occurredAt = new Date(startTime + t * ninetyDaysMs);
 
-      const pillarName = (storyline.pillarPattern[Math.floor(rng() * storyline.pillarPattern.length)] ||
-        PILLAR_NAMES[Math.floor(rng() * PILLAR_NAMES.length)]) as PillarName;
+      const pillarName = relevantPillars[Math.floor(rng() * relevantPillars.length)];
 
-      // Even if a pillar is in the storyline, it may be missing in reality.
       if (rng() > coverage[pillarName]) continue;
 
-      // Evidence state: mostly present for storyline pillars, otherwise often unknown/absent.
       const storylineBias = storyline.pillarPattern.includes(pillarName) ? 0.65 : 0.35;
       const r = rng();
       const state: 'present' | 'absent' | 'unknown' =
@@ -154,16 +177,13 @@ export function generatePillarData(vins: GeneratedVin[]) {
       const computedAtMs = startTime + t * ninetyDaysMs;
       const computedAt = new Date(computedAtMs);
 
-      // Evidence vector over ALL pillars (so missingness is explicit).
       const vector = {} as Record<PillarName, 'present' | 'absent' | 'unknown'>;
 
       let observed = 0;
       let present = 0;
       let absent = 0;
 
-      // We simulate that "observed vs missing" differs by pillar coverage and time.
-      // Some pillars may go stale (no new events), which should drag C down even if P stays high.
-      for (const pillar of PILLAR_NAMES) {
+      for (const pillar of relevantPillars) {
         const isObserved = rng() < coverage[pillar];
 
         if (!isObserved) {
@@ -175,7 +195,7 @@ export function generatePillarData(vins: GeneratedVin[]) {
 
         const isStoryPillar = storyline.pillarPattern.includes(pillar);
         const activation = isStoryPillar ? clamp01(0.25 + t * 0.6 + jitter(rng, 0.12)) : clamp01(0.1 + jitter(rng, 0.08));
-        const flip = rng() < (pillar === 'field_reports' ? 0.25 : 0.12);
+        const flip = rng() < (pillar === 'parts_purchase' ? 0.25 : 0.12);
 
         // "Intermittent flicker" and missing history should produce instability and lower C.
         let state: 'present' | 'absent' | 'unknown';
@@ -190,7 +210,7 @@ export function generatePillarData(vins: GeneratedVin[]) {
         if (state !== 'unknown') lastSeen[pillar] = Math.max(lastSeen[pillar], computedAtMs);
       }
 
-      const missingPenalty = 1 - observed / PILLAR_NAMES.length; // 0..1
+      const missingPenalty = 1 - observed / nExpected;
 
       // Staleness: how long since any pillar had a non-unknown observation.
       const freshest = Math.max(...Object.values(lastSeen));
@@ -215,7 +235,7 @@ export function generatePillarData(vins: GeneratedVin[]) {
       // Severity can diverge from P: high severity with stale/missing evidence (governance hold),
       // or moderate severity even when P is high (strong evidence but low impact).
       const baseS = clamp01(storyline.sCurve(t) + 0.35 * p + jitter(rng, 0.06));
-      const severityFromEvidence = clamp01(0.15 + (present / Math.max(1, PILLAR_NAMES.length)) * 0.55 + conflict * 0.15);
+      const severityFromEvidence = clamp01(0.15 + (present / Math.max(1, nExpected)) * 0.55 + conflict * 0.15);
       const targetS = clamp01(0.55 * baseS + 0.45 * severityFromEvidence + stalenessPenalty * 0.12 - missingPenalty * 0.08);
       const s = clamp01(smoothStep(prevS, targetS, 0.5) + jitter(rng, 0.03));
       prevS = s;
@@ -225,13 +245,21 @@ export function generatePillarData(vins: GeneratedVin[]) {
       const baseC = clamp01(0.85 - missingPenalty * 0.75 - stalenessPenalty * 0.55 - conflict * 0.25 + jitter(rng, 0.05));
       const c = clamp01(baseC - Math.max(0, s - 0.8) * 0.08); // extremely high severity reduces confidence slightly (risk of overfit)
 
+      const roundedP = Math.round(p * 1000) / 1000;
+      const roundedC = Math.round(c * 1000) / 1000;
+      const roundedS = Math.round(s * 1000) / 1000;
+      const sDaysForGov = Math.round(stalenessPenalty * 30);
+      const gov = computeGovBand(roundedP, roundedC, sDaysForGov);
+
       allSnapshots.push({
         id: uuidv4(),
         vin_id: vin.id,
-        p_score: Math.round(p * 1000) / 1000,
-        c_score: Math.round(c * 1000) / 1000,
-        s_score: Math.round(s * 1000) / 1000,
+        p_score: roundedP,
+        c_score: roundedC,
+        s_score: roundedS,
         risk_band: getRiskBand(p),
+        governance_band: gov.band,
+        governance_reason: gov.reason,
         pillar_vector: vector,
         frame_index: f,
         computed_at: computedAt,
@@ -248,6 +276,8 @@ export function generatePillarData(vins: GeneratedVin[]) {
         posterior_c: last.c_score,
         posterior_s: last.s_score,
         risk_band: last.risk_band,
+        governance_band: last.governance_band,
+        governance_reason: last.governance_reason,
         last_event_at: lastEventAt,
       });
     }

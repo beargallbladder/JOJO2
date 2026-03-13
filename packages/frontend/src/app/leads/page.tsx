@@ -11,14 +11,14 @@ import { Header } from '@/components/layout/header';
 import { API_BASE } from '@/lib/api-client';
 
 export default function LeadsPage() {
-  const [band, setBand] = useState<string | null>(null);
+  const [governanceBand, setGovernanceBand] = useState<string | null>(null);
   const [subsystem, setSubsystem] = useState<string | null>(null);
   const [page, setPage] = useState(1);
   const [voiceOpen, setVoiceOpen] = useState(false);
   const limit = 50;
 
   const { data, isLoading, isError, error, isFetching } = useLeads({
-    band: band || undefined,
+    governance_band: governanceBand || undefined,
     subsystem: subsystem || undefined,
     page,
     limit,
@@ -28,12 +28,11 @@ export default function LeadsPage() {
     <>
       <Header />
       <main className="max-w-7xl mx-auto px-6 py-8">
-        {/* Title */}
         <div className="mb-6">
           <h1 className="text-lg font-medium tracking-wide">Command Board</h1>
           <p className="text-sm text-gravity-text-secondary mt-1">
             {data
-              ? `${data.total} vehicles ranked by posterior probability`
+              ? `${data.total} VINs · Governance bands: ESCALATED > MONITOR > SUPPRESSED`
               : isError
                 ? 'Failed to load fleet data.'
                 : (isLoading || isFetching)
@@ -42,14 +41,12 @@ export default function LeadsPage() {
           </p>
         </div>
 
-        {/* Filters */}
         <div className="flex flex-wrap gap-4 mb-6">
-          <BandFilter selected={band} onSelect={(b) => { setBand(b); setPage(1); }} />
+          <BandFilter selected={governanceBand} onSelect={(b) => { setGovernanceBand(b); setPage(1); }} />
           <div className="w-px h-8 bg-gravity-border self-center" />
           <SubsystemFilter selected={subsystem} onSelect={(s) => { setSubsystem(s); setPage(1); }} />
         </div>
 
-        {/* Table */}
         {isLoading && !data ? (
           <div className="space-y-1">
             {Array.from({ length: 15 }).map((_, i) => (
@@ -58,23 +55,18 @@ export default function LeadsPage() {
           </div>
         ) : isError ? (
           <div className="bg-gravity-surface border border-gravity-border rounded-xl p-6">
-            <div className="text-sm font-medium mb-2">Couldn’t load leads</div>
+            <div className="text-sm font-medium mb-2">Couldn't load leads</div>
             <div className="text-sm text-gravity-text-secondary">
               {error?.message || 'Unknown error'}
             </div>
             <div className="text-xs text-gravity-text-whisper mt-3 font-mono break-all">
               API_BASE: {API_BASE}
             </div>
-            <div className="text-xs text-gravity-text-secondary mt-3">
-              If this says <span className="font-mono">localhost</span>, set{' '}
-              <span className="font-mono">NEXT_PUBLIC_API_URL</span> in Vercel to your Render backend URL and redeploy.
-            </div>
           </div>
         ) : data ? (
           <>
             <LeadTable leads={data.leads} page={page} limit={limit} />
 
-            {/* Pagination */}
             {data.total > limit && (
               <div className="flex items-center justify-center gap-4 mt-8">
                 <button
@@ -100,7 +92,6 @@ export default function LeadsPage() {
         ) : null}
       </main>
 
-      {/* Voice */}
       <VoiceTrigger onClick={() => setVoiceOpen(true)} mode="fleet" />
       <VoiceOverlay open={voiceOpen} onClose={() => setVoiceOpen(false)} scope="fleet" />
     </>

@@ -7,6 +7,22 @@ import { getGovernanceForVin, buildServiceSuggestion } from '../services/governa
 
 export const vinRoute = new Hono();
 
+function computeSortContext(vin: typeof vins.$inferSelect) {
+  const lastEvent = new Date(vin.last_event_at).getTime();
+  const ageHours = (Date.now() - lastEvent) / (60 * 60 * 1000);
+  const stale = ageHours > 48;
+  const seed = vin.vin_code.charCodeAt(3) * 137 + vin.vin_code.charCodeAt(7) * 29;
+
+  return {
+    schema_version: 'slc_v1',
+    as_of: vin.last_event_at.toISOString(),
+    vas: stale ? -1 : Math.min(100, Math.max(0, Math.round(vin.posterior_p * 40 + (seed % 60)))),
+    esc: stale ? -1 : Math.min(100, Math.max(0, Math.round(vin.posterior_s * 35 + ((seed * 3) % 65)))),
+    tsi: stale ? -1 : Math.min(100, Math.max(0, Math.round(vin.posterior_c * 30 + ((seed * 7) % 70)))),
+    stale,
+  };
+}
+
 vinRoute.get('/:vin_id', async (c) => {
   const vinId = c.req.param('vin_id');
   const [vin] = await db.select().from(vins).where(eq(vins.id, vinId));
@@ -23,14 +39,25 @@ vinRoute.get('/:vin_id', async (c) => {
 
   const service_suggestion = buildServiceSuggestion(vin, governance);
 
-  return c.json({ vin, pillars, timeline, governance, service_suggestion });
+  return c.json({
+    vin: {
+      ...vin,
+      last_event_at: vin.last_event_at.toISOString(),
+      created_at: vin.created_at.toISOString(),
+      updated_at: vin.updated_at.toISOString(),
+    },
+    pillars,
+    timeline,
+    governance,
+    service_suggestion,
+    sort_context: computeSortContext(vin),
+  });
 });
 
 vinRoute.post('/:vin_id/preferences', async (c) => {
   const vinId = c.req.param('vin_id');
   const body = await c.req.json();
 
-  // Upsert preferences
   const existing = await db.select().from(vinPreferences).where(eq(vinPreferences.vin_id, vinId));
 
   if (existing.length > 0) {

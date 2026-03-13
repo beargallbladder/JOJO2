@@ -3,7 +3,7 @@
 import { motion } from 'framer-motion';
 import Link from 'next/link';
 import { cn } from '@/lib/cn';
-import { riskColor, riskBandClass, riskBorderClass } from '@/lib/risk-color';
+import { riskColor } from '@/lib/risk-color';
 import { formatPScore, formatVinCode, formatRelative } from '@/lib/format';
 import { springs } from '@/lib/motion';
 import type { Vin } from '@gravity/shared';
@@ -13,8 +13,21 @@ interface LeadRowProps {
   index: number;
 }
 
+const bandStyles: Record<string, string> = {
+  ESCALATED: 'bg-red-500/10 text-red-400',
+  MONITOR: 'bg-yellow-500/10 text-yellow-400',
+  SUPPRESSED: 'bg-gray-500/10 text-gray-400',
+};
+
+const subsystemLabels: Record<string, string> = {
+  battery_12v: '12V',
+  oil_maintenance: 'OIL',
+  brake_wear: 'BRK',
+};
+
 export function LeadRow({ vin, index }: LeadRowProps) {
   const pColor = riskColor(vin.posterior_p);
+  const govBand = vin.governance_band || 'SUPPRESSED';
 
   return (
     <motion.div
@@ -27,25 +40,21 @@ export function LeadRow({ vin, index }: LeadRowProps) {
           'flex items-center gap-4 px-4 py-3 rounded-lg transition-all duration-200',
           'bg-gravity-surface border border-transparent',
           'hover:bg-gravity-elevated hover:border-gravity-border',
-          `hover:${riskBorderClass(vin.risk_band)}`
+          govBand === 'ESCALATED' && 'border-l-2 border-l-red-500/40',
         )}>
-          {/* Rank */}
           <span className="text-xs font-mono text-gravity-text-whisper w-8 text-right">
             {(index + 1).toString().padStart(3, '0')}
           </span>
 
-          {/* P-Score */}
           <div className="w-20">
-            <motion.span
-              layoutId={`p-score-${vin.id}`}
-              className={cn('font-mono text-2xl font-light tracking-wide', riskBandClass(vin.risk_band))}
+            <span
+              className="font-mono text-2xl font-light tracking-wide"
               style={{ color: pColor }}
             >
               {formatPScore(vin.posterior_p)}
-            </motion.span>
+            </span>
           </div>
 
-          {/* VIN + Model */}
           <div className="flex-1 min-w-0">
             <p className="font-mono text-sm text-gravity-text tracking-wide truncate">
               {formatVinCode(vin.vin_code)}
@@ -55,28 +64,17 @@ export function LeadRow({ vin, index }: LeadRowProps) {
             </p>
           </div>
 
-          {/* Subsystem badge */}
-          <span className={cn(
-            'px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest rounded',
-            vin.subsystem === 'propulsion' && 'bg-amber-400/10 text-amber-400',
-            vin.subsystem === 'chassis' && 'bg-score-c/10 text-score-c',
-            vin.subsystem === 'safety' && 'bg-score-s/10 text-score-s',
-          )}>
-            {vin.subsystem}
+          <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest rounded bg-gravity-elevated text-gravity-text-secondary">
+            {subsystemLabels[vin.subsystem] || vin.subsystem}
           </span>
 
-          {/* Risk band */}
           <span className={cn(
             'px-2 py-0.5 text-[10px] font-semibold uppercase tracking-widest rounded',
-            vin.risk_band === 'critical' && 'bg-risk-critical/10 text-risk-critical',
-            vin.risk_band === 'high' && 'bg-risk-high/10 text-risk-high',
-            vin.risk_band === 'medium' && 'bg-risk-medium/10 text-risk-medium',
-            vin.risk_band === 'low' && 'bg-risk-low/10 text-risk-low',
+            bandStyles[govBand] || bandStyles.SUPPRESSED,
           )}>
-            {vin.risk_band}
+            {govBand}
           </span>
 
-          {/* C/S mini scores */}
           <div className="flex gap-3 w-24">
             <div className="text-center">
               <div className="text-[10px] font-semibold uppercase tracking-widest text-gravity-text-whisper">C</div>
@@ -88,12 +86,10 @@ export function LeadRow({ vin, index }: LeadRowProps) {
             </div>
           </div>
 
-          {/* Last event */}
           <span className="text-xs text-gravity-text-whisper w-16 text-right font-mono">
             {formatRelative(vin.last_event_at)}
           </span>
 
-          {/* Arrow */}
           <svg className="w-4 h-4 text-gravity-text-whisper group-hover:text-gravity-text transition-colors" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5l7 7-7 7" />
           </svg>

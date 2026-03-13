@@ -1,9 +1,10 @@
-import { pgTable, uuid, text, real, integer, timestamp, jsonb, pgEnum, uniqueIndex } from 'drizzle-orm/pg-core';
+import { pgTable, uuid, text, real, integer, timestamp, jsonb, pgEnum } from 'drizzle-orm/pg-core';
 
 export const riskBandEnum = pgEnum('risk_band', ['critical', 'high', 'medium', 'low']);
-export const subsystemEnum = pgEnum('subsystem', ['propulsion', 'chassis', 'safety']);
+export const subsystemEnum = pgEnum('subsystem', ['battery_12v', 'oil_maintenance', 'brake_wear']);
 export const pillarStateEnum = pgEnum('pillar_state', ['present', 'absent', 'unknown']);
 export const bookingStatusEnum = pgEnum('booking_status', ['draft', 'held', 'exported']);
+export const governanceBandEnum = pgEnum('governance_band', ['ESCALATED', 'MONITOR', 'SUPPRESSED']);
 
 export const vins = pgTable('vins', {
   id: uuid('id').primaryKey().defaultRandom(),
@@ -17,6 +18,8 @@ export const vins = pgTable('vins', {
   posterior_c: real('posterior_c').notNull().default(0),
   posterior_s: real('posterior_s').notNull().default(0),
   risk_band: riskBandEnum('risk_band').notNull().default('low'),
+  governance_band: governanceBandEnum('governance_band').notNull().default('SUPPRESSED'),
+  governance_reason: text('governance_reason').notNull().default(''),
   home_area: text('home_area'),
   last_event_at: timestamp('last_event_at', { withTimezone: true }).notNull().defaultNow(),
   created_at: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
@@ -41,6 +44,8 @@ export const posteriorSnapshots = pgTable('posterior_snapshots', {
   c_score: real('c_score').notNull(),
   s_score: real('s_score').notNull(),
   risk_band: riskBandEnum('risk_band').notNull(),
+  governance_band: governanceBandEnum('governance_band').notNull().default('SUPPRESSED'),
+  governance_reason: text('governance_reason').notNull().default(''),
   pillar_vector: jsonb('pillar_vector').default({}),
   frame_index: integer('frame_index').notNull(),
   computed_at: timestamp('computed_at', { withTimezone: true }).notNull().defaultNow(),
