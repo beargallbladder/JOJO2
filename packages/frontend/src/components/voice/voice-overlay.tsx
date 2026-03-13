@@ -19,16 +19,16 @@ interface VoiceOverlayProps {
 
 const QUICK_PROMPTS = {
   vin: [
-    'Summarize this vehicle\'s risk profile.',
-    'Which pillars are most concerning?',
-    'Should this vehicle be scheduled for service?',
-    'Explain the P-score trajectory.',
+    'What\'s going on with this vehicle?',
+    'What should I tell the customer?',
+    'Should we schedule service?',
+    'What evidence are we missing?',
   ],
   fleet: [
-    'Summarize the fleet risk overview.',
-    'Which vehicles need immediate attention?',
-    'What are the top subsystem trends?',
-    'Recommend a scheduling priority.',
+    'Give me the quick rundown.',
+    'Which vehicles should I look at first?',
+    'Anything I should worry about this week?',
+    'What would you prioritize for scheduling?',
   ],
 };
 
@@ -174,7 +174,7 @@ export function VoiceOverlay({ open, onClose, scope, vinId }: VoiceOverlayProps)
                   <PulseIndicator active={isStreaming} size={32} />
                   <div>
                     <h3 className="text-sm font-medium">
-                      {scope === 'vin' ? 'VIN Analyst' : 'Fleet Advisor'}
+                      {scope === 'vin' ? 'Vehicle Health Assistant' : 'Fleet Health Assistant'}
                     </h3>
                     <p className="text-[10px] text-gravity-text-whisper uppercase tracking-widest">
                       {isStreaming ? 'Analyzing…' : ttsStatus === 'generating' ? 'Voice…' : ttsStatus === 'speaking' ? 'Speaking…' : 'Ready'}

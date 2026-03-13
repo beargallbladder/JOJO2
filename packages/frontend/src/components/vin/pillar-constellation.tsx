@@ -6,14 +6,14 @@ import { polygonPoints } from '@/lib/pillar-geometry';
 import type { PillarEvent } from '@gravity/shared';
 
 const PILLAR_LABELS: Record<string, { label: string; letter: string }> = {
-  short_trip_density: { label: 'Short-Trip', letter: 'A' },
-  ota_stress: { label: 'OTA Stress', letter: 'B' },
-  cold_soak: { label: 'Cold-Soak', letter: 'C' },
-  cranking_degradation: { label: 'Cranking', letter: 'D' },
-  hmi_reset: { label: 'HMI Reset', letter: 'E' },
-  service_record: { label: 'Service Rec', letter: 'F' },
-  parts_purchase: { label: 'Parts', letter: 'G' },
-  cohort_prior: { label: 'Cohort', letter: 'H' },
+  short_trip_density: { label: 'Short Trips', letter: 'A' },
+  ota_stress: { label: 'Software Updates', letter: 'B' },
+  cold_soak: { label: 'Cold Weather', letter: 'C' },
+  cranking_degradation: { label: 'Starting Health', letter: 'D' },
+  hmi_reset: { label: 'Driver Reset', letter: 'E' },
+  service_record: { label: 'Dealer Service', letter: 'F' },
+  parts_purchase: { label: 'Parts Purchased', letter: 'G' },
+  cohort_prior: { label: 'Fleet Pattern', letter: 'H' },
 };
 
 interface PillarConstellationProps {

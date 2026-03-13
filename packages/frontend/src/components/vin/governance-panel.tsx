@@ -48,19 +48,19 @@ export function GovernancePanel({ vin, governance, suggestion, sortContext }: Go
 
         <div className="mt-3 grid grid-cols-3 gap-3">
           <div>
-            <div className="text-[10px] text-gravity-text-whisper uppercase tracking-widest">P</div>
+            <div className="text-[10px] text-gravity-text-whisper uppercase tracking-widest">Risk</div>
             <div className="font-mono text-lg">{vin.posterior_p.toFixed(2)}</div>
-            <div className="text-[9px] text-gravity-text-whisper">gate: 0.85</div>
+            <div className="text-[9px] text-gravity-text-whisper">escalate at 0.85</div>
           </div>
           <div>
-            <div className="text-[10px] text-gravity-text-whisper uppercase tracking-widest">C</div>
+            <div className="text-[10px] text-gravity-text-whisper uppercase tracking-widest">Evidence</div>
             <div className="font-mono text-lg text-score-c">{vin.posterior_c.toFixed(2)}</div>
-            <div className="text-[9px] text-gravity-text-whisper">gate: 0.70</div>
+            <div className="text-[9px] text-gravity-text-whisper">need 0.70 to act</div>
           </div>
           <div>
-            <div className="text-[10px] text-gravity-text-whisper uppercase tracking-widest">S</div>
+            <div className="text-[10px] text-gravity-text-whisper uppercase tracking-widest">Freshness</div>
             <div className="font-mono text-lg text-score-s">{vin.posterior_s.toFixed(2)}</div>
-            <div className="text-[9px] text-gravity-text-whisper">gate: ≤14d</div>
+            <div className="text-[9px] text-gravity-text-whisper">stale after 14d</div>
           </div>
         </div>
       </div>
@@ -69,20 +69,20 @@ export function GovernancePanel({ vin, governance, suggestion, sortContext }: Go
       {sortContext && (
         <div className="p-3 rounded-lg border border-gravity-border bg-gravity-surface mb-4">
           <div className="text-[10px] font-semibold uppercase tracking-widest text-gravity-text-whisper mb-2">
-            Sort Context <span className="font-mono">{sortContext.schema_version}</span>
-            {sortContext.stale && <span className="text-yellow-500 ml-2">STALE</span>}
+            Operational Priority
+            {sortContext.stale && <span className="text-yellow-500 ml-2">DATA STALE</span>}
           </div>
           <div className="grid grid-cols-3 gap-3 text-center">
             <div>
-              <div className="text-[9px] text-gravity-text-whisper uppercase">VAS</div>
+              <div className="text-[9px] text-gravity-text-whisper">Activity</div>
               <div className="font-mono text-sm">{sortContext.vas === -1 ? '—' : sortContext.vas}</div>
             </div>
             <div>
-              <div className="text-[9px] text-gravity-text-whisper uppercase">ESC</div>
+              <div className="text-[9px] text-gravity-text-whisper">Env Stress</div>
               <div className="font-mono text-sm">{sortContext.esc === -1 ? '—' : sortContext.esc}</div>
             </div>
             <div>
-              <div className="text-[9px] text-gravity-text-whisper uppercase">TSI</div>
+              <div className="text-[9px] text-gravity-text-whisper">Trip Stress</div>
               <div className="font-mono text-sm">{sortContext.tsi === -1 ? '—' : sortContext.tsi}</div>
             </div>
           </div>

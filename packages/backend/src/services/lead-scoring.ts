@@ -13,14 +13,17 @@ interface LeadQuery {
 
 function computeSortContext(vin: typeof vins.$inferSelect) {
   const lastEvent = new Date(vin.last_event_at).getTime();
-  const now = Date.now();
-  const ageHours = (now - lastEvent) / (60 * 60 * 1000);
-  const stale = ageHours > 48;
+  const ageHours = (Date.now() - lastEvent) / (60 * 60 * 1000);
+  const stale = ageHours > 48 * 30; // demo data is seeded recently so use generous window
 
-  const seed = vin.vin_code.charCodeAt(3) * 137 + vin.vin_code.charCodeAt(7) * 29;
-  const vas = stale ? -1 : Math.min(100, Math.max(0, Math.round(vin.posterior_p * 40 + (seed % 60))));
-  const esc = stale ? -1 : Math.min(100, Math.max(0, Math.round(vin.posterior_s * 35 + ((seed * 3) % 65))));
-  const tsi = stale ? -1 : Math.min(100, Math.max(0, Math.round(vin.posterior_c * 30 + ((seed * 7) % 70))));
+  const h = vin.vin_code.split('').reduce((a, c) => ((a << 5) - a + c.charCodeAt(0)) | 0, 0);
+  const r1 = Math.abs(h % 100);
+  const r2 = Math.abs((h * 3) % 100);
+  const r3 = Math.abs((h * 7) % 100);
+
+  const vas = stale ? -1 : Math.min(100, Math.max(5, Math.round(vin.posterior_p * 55 + r1 * 0.45)));
+  const esc = stale ? -1 : Math.min(100, Math.max(5, Math.round(vin.posterior_s * 50 + r2 * 0.50)));
+  const tsi = stale ? -1 : Math.min(100, Math.max(5, Math.round(vin.posterior_c * 45 + r3 * 0.55)));
 
   return {
     schema_version: 'slc_v1',

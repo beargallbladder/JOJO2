@@ -24,7 +24,7 @@ ttsRoute.post('/', async (c) => {
       input: clipped,
       response_format: 'mp3',
       instructions:
-        'Calm, controlled, deliberate cadence. Executive-level clarity. Short declarative sentences. No filler.',
+        'Warm, clear, and confident. Speak like a knowledgeable friend explaining car health. Natural pace, not rushed. Slight pauses between key points. Conversational, not robotic.',
     }),
   });
 
