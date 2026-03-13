@@ -213,6 +213,122 @@ async function seed() {
   }
   console.log(`  Inserted ${govActions.length} governance actions`);
 
+  // Hand-crafted demo VINs for walkthrough scenarios.
+  // These override the first 6 hero VINs with clean, spec-matching governance states.
+  console.log('  Overwriting hero VINs with walkthrough-ready data...');
+  const now = new Date();
+  const twoDaysAgo = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+  const fiftyDaysAgo = new Date(now.getTime() - 50 * 24 * 60 * 60 * 1000);
+
+  const heroOverrides = [
+    {
+      vin_code: '1FTEW1E5XMFHERO1',
+      label: 'ESCALATED — all pillars present, fresh data',
+      posterior_p: 0.91, posterior_c: 0.82, posterior_s: 0.12,
+      risk_band: 'critical' as const, governance_band: 'ESCALATED' as const,
+      governance_reason: 'High risk (91%) with strong evidence (82%) and fresh data. Dealer action warranted.',
+      last_event_at: twoDaysAgo,
+    },
+    {
+      vin_code: '1FTEW1E5XMFHERO2',
+      label: 'SUPPRESSED — high P but low C (thin evidence)',
+      posterior_p: 0.88, posterior_c: 0.33, posterior_s: 0.15,
+      risk_band: 'critical' as const, governance_band: 'SUPPRESSED' as const,
+      governance_reason: 'Not enough evidence to act (33% coverage). Need at least 50%.',
+      last_event_at: twoDaysAgo,
+    },
+    {
+      vin_code: '1FTEW1E5XMFHERO3',
+      label: 'SUPPRESSED — high P, high C, but STALE',
+      posterior_p: 0.88, posterior_c: 0.82, posterior_s: 0.78,
+      risk_band: 'critical' as const, governance_band: 'SUPPRESSED' as const,
+      governance_reason: 'Evidence is 50 days old — too stale to act on',
+      last_event_at: fiftyDaysAgo,
+    },
+    {
+      vin_code: '1FTEW1E5XMFHERO4',
+      label: 'MONITOR — elevated risk, moderate evidence',
+      posterior_p: 0.72, posterior_c: 0.65, posterior_s: 0.35,
+      risk_band: 'high' as const, governance_band: 'MONITOR' as const,
+      governance_reason: 'Elevated risk (72%) with moderate evidence (65%). Watching for more signal.',
+      last_event_at: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
+    },
+    {
+      vin_code: '1FTEW1E5XMFHERO5',
+      label: 'SUPPRESSED — gap zone, P and C both middling',
+      posterior_p: 0.55, posterior_c: 0.52, posterior_s: 0.30,
+      risk_band: 'medium' as const, governance_band: 'SUPPRESSED' as const,
+      governance_reason: 'Risk is 55% but evidence is only 52% — not enough to escalate or monitor. Holding.',
+      last_event_at: new Date(now.getTime() - 10 * 24 * 60 * 60 * 1000),
+    },
+    {
+      vin_code: '1FTEW1E5XMFHERO6',
+      label: 'SUPPRESSED — low risk baseline',
+      posterior_p: 0.12, posterior_c: 0.25, posterior_s: 0.08,
+      risk_band: 'low' as const, governance_band: 'SUPPRESSED' as const,
+      governance_reason: 'Risk level (12%) is below action threshold',
+      last_event_at: thirtyDaysAgo,
+    },
+  ];
+
+  for (const hero of heroOverrides) {
+    await db.update(schema.vins).set({
+      posterior_p: hero.posterior_p,
+      posterior_c: hero.posterior_c,
+      posterior_s: hero.posterior_s,
+      risk_band: hero.risk_band,
+      governance_band: hero.governance_band,
+      governance_reason: hero.governance_reason,
+      last_event_at: hero.last_event_at,
+      updated_at: now,
+    }).where(eq(schema.vins.vin_code, hero.vin_code));
+  }
+  console.log(`  Overwrote ${heroOverrides.length} hero VINs`);
+
+  // Insert clean pillar events for HERO1 (ESCALATED) so constellation shows all pillars corroborating.
+  const hero1 = generatedVins.find(v => v.vin_code === '1FTEW1E5XMFHERO1');
+  if (hero1) {
+    const hero1Pillars = ['short_trip_density', 'ota_stress', 'cold_soak', 'cranking_degradation', 'cohort_prior'];
+    const sources = ['Vehicle telematics', 'OTA servers', 'Vehicle sensors', 'Onboard diagnostics', 'Fleet analytics'];
+    for (let i = 0; i < hero1Pillars.length; i++) {
+      await db.insert(schema.pillarEvents).values({
+        vin_id: hero1.id,
+        pillar_name: hero1Pillars[i],
+        pillar_state: 'present',
+        confidence: 0.85 + Math.random() * 0.10,
+        evidence_source: sources[i],
+        occurred_at: twoDaysAgo,
+        metadata: { hero: true },
+      });
+    }
+    console.log('  Inserted 5 corroborating pillar events for HERO1 (ESCALATED)');
+  }
+
+  // Insert pillar events for HERO2 (high P, low C) — only 1 pillar present, rest unknown.
+  const hero2 = generatedVins.find(v => v.vin_code === '1FTEW1E5XMFHERO2');
+  if (hero2) {
+    await db.insert(schema.pillarEvents).values({
+      vin_id: hero2.id,
+      pillar_name: 'cranking_degradation',
+      pillar_state: 'present',
+      confidence: 0.90,
+      evidence_source: 'Onboard diagnostics',
+      occurred_at: twoDaysAgo,
+      metadata: { hero: true },
+    });
+    await db.insert(schema.pillarEvents).values({
+      vin_id: hero2.id,
+      pillar_name: 'service_record',
+      pillar_state: 'absent',
+      confidence: 0.40,
+      evidence_source: 'Dealer management system',
+      occurred_at: twoDaysAgo,
+      metadata: { hero: true, note: 'Expected service record not found within ±14 day window' },
+    });
+    console.log('  Inserted pillar events for HERO2 (high P, low C — thin evidence)');
+  }
+
   console.log('✅ Seed complete!');
   console.log(`  VINs: ${generatedVins.length}`);
   console.log(`  Dealers: ${dealers.length}`);
