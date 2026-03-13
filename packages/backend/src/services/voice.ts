@@ -87,7 +87,7 @@ export async function* streamVoiceResponse(params: {
     const systemPrompt = params.scope === 'vin' ? VIN_SYSTEM_PROMPT : FLEET_SYSTEM_PROMPT;
 
     const stream = await client.messages.stream({
-      model: 'claude-sonnet-4-6-20250514',
+      model: 'claude-3-haiku-20240307',
       max_tokens: 200,
       system: systemPrompt,
       messages: [
