@@ -1,5 +1,6 @@
 import pg from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
+import { execSync } from 'node:child_process';
 import * as schema from '../schema.js';
 import { generateVins } from './vin-generator.js';
 import { generatePillarData } from './pillar-generator.js';
@@ -47,6 +48,15 @@ async function seed() {
       DROP TYPE IF EXISTS booking_status CASCADE;
       DROP TYPE IF EXISTS governance_band CASCADE;
     `);
+
+    console.log('  Running drizzle-kit migrate to recreate schema...');
+    try {
+      execSync('npx drizzle-kit migrate', { stdio: 'inherit', env: { ...process.env, DATABASE_URL } });
+    } catch (e: any) {
+      console.error('  Migration failed:', e.message);
+      await pool.end();
+      process.exit(1);
+    }
   }
 
   // Generate dealers first (no FK deps)
